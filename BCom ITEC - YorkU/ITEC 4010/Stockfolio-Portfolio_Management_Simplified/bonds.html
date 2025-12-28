@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Bonds - Portfolio Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="styles.css" rel="stylesheet" />
+    <style>
+        #bondSuggestions {
+            z-index: 1000;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            display: none;
+        }
+        #bondSuggestions .dropdown-item {
+            cursor: pointer;
+        }
+        #bondSuggestions .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg sticky-top shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="home.html">Portfolio Tracker</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="home.html">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="stocks.html">Stocks</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="bonds.html">Bonds</a></li>
+                    <li class="nav-item"><a class="nav-link" href="real-estate.html">Real Estate</a></li>
+                    <li class="nav-item"><a class="nav-link" href="crypto.html">Crypto</a></li>
+                    <li class="nav-item"><a class="nav-link" href="watchlist.html">Watchlist</a></li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="btn btn-danger nav-link text-white" href="index.html" onclick="logoutUser()">Log Out</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="sticky-top bg-light p-3 shadow-sm">
+        <h4 class="text-center mb-0">Total Bonds Value: <span id="totalBondsValue">$0.00</span></h4>
+   
+    <div class="container-fluid my-4">
+        <!-- Add Bond Form -->
+        <div class="card p-4 shadow-sm mb-4">
+            <form id="addBondForm" onsubmit="addBond(); return false;">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="position-relative">
+                            <input type="text" class="form-control" id="bondName" placeholder="Bond Name" oninput="searchBonds()" autocomplete="off" required />
+                            <div id="bondSuggestions" class="dropdown-menu show position-absolute w-100" style="max-height: 200px; overflow-y: auto; display: none;"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <input type="number" class="form-control" id="marketRate" placeholder="Market Rate (%)" step="0.01" required />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <input type="number" class="form-control" id="faceValue" placeholder="Face Value" step="0.01" required />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <input type="number" class="form-control" id="couponRate" placeholder="Coupon Rate (%)" step="0.01" required />
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <input type="date" class="form-control" id="bondDate" required />
+                    </div>
+                </div>
+                <div class="text-center">
+                    <button type="submit" class="btn btn-primary">Add Bond</button>
+                </div>
+            </form>
+        </div>
+
+       
+
+        <!-- Bonds Table -->
+        <div class="card p-4 shadow-sm mb-4">
+            <h4 class="text-center mb-4">Bonds Summary</h4>
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr class="table-primary">
+                            <th>Name</th>
+                            <th>Face Value</th>
+                            <th>Coupon Rate (%)</th>
+                            <th>Market Rate (%)</th>
+                            <th>Date</th>
+                            <th>Total Value</th>
+                            <th style="width: 200px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bondsDataContainer"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+    <script>
+        function addBond() {
+            const name = document.getElementById('bondName').value;
+            const faceValue = parseFloat(document.getElementById('faceValue').value);
+            const couponRate = parseFloat(document.getElementById('couponRate').value);
+            const marketRate = parseFloat(document.getElementById('marketRate').value);
+            const date = document.getElementById('bondDate').value;
+
+            if (!name || isNaN(faceValue) || isNaN(couponRate) || isNaN(marketRate) || !date) {
+                alert('Please fill in all fields correctly.');
+                return;
+            }
+
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            if (!currentUser || !currentUser.username) {
+                alert('No user is logged in.');
+                return;
+            }
+
+            const username = currentUser.username;
+            const bondsKey = `${username}_bonds`;
+
+            const bonds = JSON.parse(localStorage.getItem(bondsKey)) || [];
+            const editIndex = document.getElementById('addBondForm').getAttribute('data-edit-index');
+
+            if (editIndex !== null) {
+                bonds[editIndex] = { name, faceValue, couponRate, marketRate, date };
+                document.getElementById('addBondForm').removeAttribute('data-edit-index');
+                document.querySelector('#addBondForm button[type="submit"]').textContent = 'Add Bond';
+                alert('Bond updated successfully!');
+            } else {
+                const newBond = { name, faceValue, couponRate, marketRate, date };
+                bonds.push(newBond);
+                alert('Bond added successfully!');
+            }
+
+            localStorage.setItem(bondsKey, JSON.stringify(bonds));
+            displayBonds();
+            calculateTotalBondsValue();
+            document.getElementById('addBondForm').reset();
+        }
+
+        function displayBonds() {
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            if (!currentUser || !currentUser.username) return;
+
+            const username = currentUser.username;
+            const bondsKey = `${username}_bonds`;
+
+            const bonds = JSON.parse(localStorage.getItem(bondsKey)) || [];
+            const container = document.getElementById('bondsDataContainer');
+            container.innerHTML = bonds.map((bond, index) => `
+                <tr>
+                    <td>${bond.name}</td>
+                    <td>$${bond.faceValue.toFixed(2)}</td>
+                    <td>${bond.couponRate}%</td>
+                    <td>${bond.marketRate}%</td>
+                    <td>${bond.date}</td>
+                    <td>$${(bond.faceValue * (1 + bond.couponRate / 100)).toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" onclick="editBond(${index})">Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="removeBond(${index})">Remove</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function calculateTotalBondsValue() {
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            if (!currentUser || !currentUser.username) return;
+
+            const username = currentUser.username;
+            const bondsKey = `${username}_bonds`;
+
+            const bonds = JSON.parse(localStorage.getItem(bondsKey)) || [];
+            const totalValue = bonds.reduce((sum, bond) => sum + bond.faceValue * (1 + bond.couponRate / 100), 0);
+            document.getElementById('totalBondsValue').textContent = `$${totalValue.toFixed(2)}`;
+        }
+
+        function removeBond(index) {
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            if (!currentUser || !currentUser.username) return;
+
+            const username = currentUser.username;
+            const bondsKey = `${username}_bonds`;
+
+            const bonds = JSON.parse(localStorage.getItem(bondsKey)) || [];
+            bonds.splice(index, 1);
+            localStorage.setItem(bondsKey, JSON.stringify(bonds));
+            displayBonds();
+            calculateTotalBondsValue();
+            alert('Bond removed successfully!');
+        }
+
+        function editBond(index) {
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            if (!currentUser || !currentUser.username) return;
+
+            const username = currentUser.username;
+            const bondsKey = `${username}_bonds`;
+
+            const bonds = JSON.parse(localStorage.getItem(bondsKey)) || [];
+            const bond = bonds[index];
+            document.getElementById('bondName').value = bond.name;
+            document.getElementById('faceValue').value = bond.faceValue;
+            document.getElementById('couponRate').value = bond.couponRate;
+            document.getElementById('marketRate').value = bond.marketRate;
+            document.getElementById('bondDate').value = bond.date;
+            document.getElementById('addBondForm').setAttribute('data-edit-index', index);
+            document.querySelector('#addBondForm button[type="submit"]').textContent = 'Save Changes';
+        }
+
+        async function searchBonds() {
+            const query = document.getElementById('bondName').value.trim();
+            const suggestionsContainer = document.getElementById('bondSuggestions');
+
+            if (!query) {
+                suggestionsContainer.style.display = 'none';
+                return;
+            }
+
+            suggestionsContainer.innerHTML = '<p class="dropdown-item">Searching...</p>';
+            suggestionsContainer.style.display = 'block';
+
+            // Mock bond data
+            const mockBonds = [
+                { name: 'US Treasury Bond', faceValue: 1000, couponRate: 2.5, marketRate: 2.0 },
+                { name: 'Corporate Bond A', faceValue: 5000, couponRate: 5.0, marketRate: 4.5 },
+                { name: 'Municipal Bond B', faceValue: 2000, couponRate: 3.0, marketRate: 2.8 },
+            ];
+
+            // Filter mock data based on the query
+            const bonds = mockBonds.filter(bond =>
+                bond.name.toLowerCase().includes(query.toLowerCase())
+            );
+
+            if (bonds.length === 0) {
+                suggestionsContainer.innerHTML = '<p class="dropdown-item">No bonds found.</p>';
+                return;
+            }
+
+            // Display suggestions
+            suggestionsContainer.innerHTML = bonds
+                .map(
+                    bond => `
+                    <button type="button" class="dropdown-item" onclick="selectBond('${bond.name}', ${bond.faceValue}, ${bond.couponRate}, ${bond.marketRate})">
+                        ${bond.name} - Face Value: $${bond.faceValue}, Coupon Rate: ${bond.couponRate}%
+                    </button>
+                `
+                )
+                .join('');
+        }
+
+        function selectBond(name, faceValue, couponRate, marketRate) {
+            document.getElementById('bondName').value = name;
+            document.getElementById('faceValue').value = faceValue;
+            document.getElementById('couponRate').value = couponRate;
+            document.getElementById('marketRate').value = marketRate;
+            document.getElementById('bondDate').value = new Date().toISOString().split('T')[0]; // Default to today's date
+
+            // Hide the suggestions dropdown
+            document.getElementById('bondSuggestions').style.display = 'none';
+        }
+
+        document.getElementById('addBondForm').addEventListener('reset', () => {
+            document.getElementById('addBondForm').removeAttribute('data-edit-index');
+            document.querySelector('#addBondForm button[type="submit"]').textContent = 'Add Bond';
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            displayBonds();
+            calculateTotalBondsValue();
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
